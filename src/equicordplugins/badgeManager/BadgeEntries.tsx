@@ -53,7 +53,7 @@ export function BadgeEntries() {
         return (
             <>
                 <Flex flexDirection="row">
-                    <div style={{ flexGrow: 1 }}>
+                    <div style={{ flexGrow: 1 }} key={entry.id}>
 
                         <Span size="md">
                             Enter a name for your badge.

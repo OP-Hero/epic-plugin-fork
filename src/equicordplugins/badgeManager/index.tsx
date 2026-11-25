@@ -21,9 +21,10 @@ import "./styles.css";
 import definePlugin from "@utils/types";
 import { EquicordDevs } from "@utils/constants";
 import { settings } from "./settings";
-import { _getBadges, addProfileBadge, BadgePosition, BadgeRarity, removeProfileBadge } from "@api/Badges";
+import { _getBadges, addProfileBadge, BadgePosition, BadgeRarity, ProfileBadge, removeProfileBadge } from "@api/Badges";
 import { DataStore } from "@api/index";
 import { hasBadge } from "./utils";
+import { useForceUpdater } from "@utils/react";
 
 
 interface BadgeEntry {
@@ -31,11 +32,12 @@ interface BadgeEntry {
     desc: string,
     rarity: BadgeRarity,
     icon: string,
+    version: number,
     id: string;
 }
 
 export let badgeEntries: Array<BadgeEntry> = [];
-let oldBadges: Array<BadgeEntry> = badgeEntries;
+let registered = new Map<string, ProfileBadge>();
 
 
 export const BADGE_ENTRIES_KEY = "badgeManager_badges";
@@ -46,6 +48,7 @@ export async function addBadgeEntry(forceUpdate: () => void) {
         desc: "",
         rarity: BadgeRarity.COMMON,
         icon: "",
+        version: 0,
         id: crypto.randomUUID()
     });
     await DataStore.set(BADGE_ENTRIES_KEY, badgeEntries);
@@ -62,10 +65,15 @@ export async function removeBadgeEntry(idx: number, forceUpdate: () => void) {
 
 export function applyBadges() {
 
-    for (const entry of oldBadges) {
+    for (const badge of registered.values()) removeProfileBadge(badge);
+    registered.clear();
+
+    for (const entry of badgeEntries) {
+
+        if (!entry.name || !entry.icon) continue;
 
         let badge = {
-            id: entry.id,
+            id: `${entry.id}-${entry.version++}`,
             name: entry.name,
             description: entry.desc,
             infoLabel: "Custom Badge",
@@ -76,11 +84,14 @@ export function applyBadges() {
             shouldShow: () => hasBadge(entry.id)
         };
 
-        removeProfileBadge(badge);
-
         addProfileBadge(badge);
+
+        registered.set(entry.id, badge);
     }
-    oldBadges = badgeEntries;
+}
+
+function clearBadges() {
+    badgeEntries.forEach((_, i) => removeBadgeEntry(i, useForceUpdater()));
 }
 
 export default definePlugin({
@@ -96,9 +107,12 @@ export default definePlugin({
 
         badgeEntries = await DataStore.get(BADGE_ENTRIES_KEY) ?? [];
         await DataStore.set(BADGE_ENTRIES_KEY, badgeEntries);
-        oldBadges = badgeEntries;
 
         applyBadges();
 
+    },
+
+    async stop() {
+        clearBadges();
     }
 });
